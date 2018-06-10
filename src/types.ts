@@ -1,29 +1,36 @@
 export interface CategorySegment {
+    gold: number; // show the best time for this split
     name: string;
-    gold?: number;
-    pb?: number;
+    pb: number; // show the time from the PB run for this split
 }
 
-export interface RunSegment {
+export interface Segment {
     name: string;
-    skipped?: boolean;
-    time: number;
+    number: number;
+    duration: number;
+    gold: boolean;
+    skipped: boolean;
+    reduced: boolean;
 }
 
-export interface GameSplits {
-    best: number;
-    category: string;
+export interface RunSettings {
+    attempts: number;
+    best?: number;
+    categoryId?: string;
+    categoryName: string;
     completedRuns?: number;
-    game: string;
+    gameAbbreviation?: string;
+    gameId?: string;
+    gameName: string;
     offset?: number;
-    resets?: number;
     segments: CategorySegment[];
-    unsaved: boolean;
+    unsaved?: boolean;
 }
 
 export interface Run {
     category: string;
     game: string;
-    totalTime: number;
-    segments: RunSegment[];
+    startTime: number;
+    duration: number;
+    segments: Segment[];
 }

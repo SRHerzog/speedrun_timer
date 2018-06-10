@@ -1,17 +1,23 @@
-import { GameSplits } from './types';
+import { RunSettings } from './types';
 
-export const defaultGameCategory: GameSplits = {
+export const defaultGameCategory: RunSettings = {
+    attempts: 0,
     best: 0,
-    category: 'No category',
+    categoryName: 'No category',
     completedRuns: 0,
-    game: 'No game',
-    resets: 0,
+    gameName: 'No game',
     segments: [{
+        gold: 0,
         name: 'split 1',
+        pb: 0,
     }, {
+        gold: 0,
         name: 'split 2',
+        pb: 0,
     }, {
+        gold: 0,
         name: 'split 3',
+        pb: 0,
     }],
     unsaved: false,
 };

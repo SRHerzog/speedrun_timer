@@ -4,7 +4,7 @@
   "description": "Speedrun timer with Electron + React UI",
   "main": "main.js",
   "scripts": {
-    "start": "webpack-dev-server --hot --inline --progress --colors --port 3000 --open",
+    "start": "webpack-dev-server --hot --inline --progress --colors --port 3004 --open",
     "build": "webpack -p --progress --colors --config webpack.config.electron.js"
   },
   "repository": {
@@ -38,6 +38,7 @@
     "lodash": "^4.17.10",
     "mobx": "^4.3.0",
     "mobx-react": "^5.1.2",
+    "mobx-utils": "^5.0.0",
     "node-sass": "^4.9.0",
     "react": "^16.4.0",
     "react-dom": "^16.4.0",

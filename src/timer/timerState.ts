@@ -1,35 +1,51 @@
-import { action, computed, IObservableArray, observable } from 'mobx';
+import { action, computed, IObservableArray, observable, /*toJS, */when } from 'mobx';
+
+import SplitStore from '../splits/splitStore';
 
 import { defaultGameCategory } from '../defaults';
-import { GameSplits, Run } from '../types';
+import { CategorySegment, Run, RunSettings } from '../types';
 
 // const targetInterval: number = 10;
 
 export default class TimerState {
-    @observable gameCategory: GameSplits = defaultGameCategory;
+    @observable currentSettings: RunSettings = defaultGameCategory;
     @observable curSplits: IObservableArray<number> = observable.array([]);
     @observable curTime: number = 0;
+    @observable paused: boolean = false;
+    @observable pauseStart: number = 0;
+    @observable pauseSegments: IObservableArray<number> = observable.array([]);
     @observable runsInSession: IObservableArray<Run> = observable.array([]);
     @observable splitIndex: number = 0;
     @observable startTime: number = 0;
 
     running: boolean = false;
+    splitStore: SplitStore;
 
-    // constructor() {
-    // }
+    constructor(splitStore: SplitStore) {
+        window['timerState'] = this;
+        this.splitStore = splitStore;
+    }
 
     @action.bound start(): void {
+        this.curSplits.clear();
         this.startTime = performance.now();
         this.running = true;
         this.tickTime();
+        this.pauseSegments.replace([0]);
     }
 
     @action.bound split(): void {
+        if (this.paused) {
+            return;
+        }
         this.curSplits.push((this.curTime - this.startTime) / 1000);
-        if (this.curSplits.length === this.gameCategory.segments.length) {
+        if (this.curSplits.length === this.currentSettings.segments.length) {
+            this.currentSettings.completedRuns++;
             this.updatePB();
             this.running = false;
-            // TODO: sync with local storage 
+            this.splitStore.saveTimes();
+        } else {
+            this.pauseSegments.push(0);
         }
         this.checkGold();
     }
@@ -38,16 +54,24 @@ export default class TimerState {
         this.curSplits.push(0);
     }
 
+    @action.bound pause(): void {
+        if (!this.paused) {
+            this.paused = true;
+            this.pauseStart = this.curTime;
+        } else {
+            this.paused = false;
+            this.pauseSegments[this.pauseSegments.length - 1] += this.curTime - this.pauseStart;
+        }
+    }
+
     @action.bound reset(): void {
         this.running = false;
         this.startTime = 0;
         this.curTime = 0;
-        if (this.splitIndex < this.gameCategory.segments.length - 1) {
-            this.gameCategory.resets++;
-        } else {
-            this.gameCategory.completedRuns++;
+        if (this.splitIndex < this.currentSettings.segments.length - 1) {
+            this.currentSettings.attempts++;
+            this.splitStore.saveTimes();
         }
-        // TODO: sync with local storage
         this.curSplits.clear();
     }
 
@@ -64,25 +88,72 @@ export default class TimerState {
 
     @action.bound checkGold(): void {
         const splitIndex: number = this.curSplits.length - 1;
-        if (this.curSplits[splitIndex] - this.gameCategory.segments[splitIndex].gold) {
-            this.gameCategory.segments[splitIndex].gold = this.curSplits[splitIndex];
+        const segment: CategorySegment = this.currentSettings.segments[splitIndex];
+        console.log({ segment, splitIndex });
+        if (!segment.gold ||
+            (splitIndex === 0 && this.curSplits[splitIndex] < segment.gold) ||
+            (splitIndex > 0 && this.curSplits[splitIndex] - this.curSplits[splitIndex - 1] < segment.gold)) {
+            if (splitIndex === 0) {
+                segment.gold = this.curSplits[splitIndex];
+            } else {
+                segment.gold = this.curSplits[splitIndex] - this.curSplits[splitIndex - 1];
+            }
         }
     }
 
     @action.bound updatePB(): void {
-        if (this.elapsedTime < this.gameCategory.best) {
-            this.gameCategory.best = this.elapsedTime;
+        if (!this.pbTime || this.elapsedTime < this.pbTime) {
+            this.currentSettings.best = this.elapsedTime;
             this.curSplits.forEach((split: number, index: number) => {
-                this.gameCategory.segments[index].pb = split;
-            })
+                if (!index) {
+                    this.currentSettings.segments[index].pb = split;
+                } else {
+                    this.currentSettings.segments[index].pb = split - this.curSplits[index - 1];
+                }
+            });
         }
     }
 
-    @computed get currentRun(): Run {
-        return this.runsInSession[this.runsInSession.length - 1];
-    }
+    // @computed get currentRun(): Run {
+    //     return this.runsInSession[this.runsInSession.length - 1];
+    // }
 
     @computed get elapsedTime(): number {
         return (this.curTime - this.startTime) / 1000;
+    }
+
+    @action.bound selectSettings(settings: RunSettings): void {
+        this.currentSettings = settings;
+        this.saveLast();
+    }
+
+    @action.bound saveLast(): void {
+        console.log('saving last settings');
+        localStorage.setItem('lastSettings', `${this.currentSettings.gameName}_${this.currentSettings.categoryName}`);
+    }
+
+    @action.bound loadLast(): void {
+        console.log('loading last settings');
+        const lastSettings: string = localStorage.getItem('lastSettings');
+        if (lastSettings) {
+            const [gameName, categoryName] = lastSettings.split('_');
+            when(() => !!this.splitStore && !!this.splitStore.savedSettings.length, () => {
+                const foundSettings: RunSettings = this.splitStore.savedSettings.find(
+                    (item: RunSettings) => item.gameName === gameName && item.categoryName === categoryName);
+                if (foundSettings) {
+                    this.selectSettings(foundSettings);
+                }
+            });
+        }
+    }
+
+    @computed get pbTime(): number {
+        return this.currentSettings.segments.reduce((output: number, item: CategorySegment) =>
+            output + item.pb, 0);
+    }
+
+    @computed get sumOfBest(): number {
+        return this.currentSettings.segments.reduce((output: number, item: CategorySegment) =>
+            output + item.gold, 0);
     }
 }
